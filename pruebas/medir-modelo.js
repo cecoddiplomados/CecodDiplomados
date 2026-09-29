@@ -207,12 +207,14 @@ function reportar(corridas, reglas) {
     process.exit(1);
   }
   const propio = path.join(__dirname, 'conversaciones.js');
+  // SOLO=caso1,caso2 corre solo esas conversaciones (para verificar un arreglo sin pagar las 28).
+  const solo = (process.env.SOLO || '').split(',').map((x) => x.trim()).filter(Boolean);
   const archivo = fs.existsSync(propio) ? propio : path.join(__dirname, 'conversaciones.ejemplo.js');
   if (archivo !== propio) {
     console.error('AVISO: usando conversaciones.ejemplo.js (genéricas).');
     console.error('Copia a pruebas/conversaciones.js y escríbelas con los casos REALES del cliente.\n');
   }
-  const convs = require(archivo);
+  const convs = require(archivo).filter(([nombre]) => solo.length === 0 || solo.includes(nombre));
   const cfg = getConfig();
   const reglas = bateria(cfg);
   const turnos = convs.reduce((a, [, t]) => a + t.length, 0);

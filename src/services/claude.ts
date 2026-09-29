@@ -1044,6 +1044,7 @@ const HANDOFF = new RegExp(
     'una persona del (equipo|consultorio|negocio) (te|le|la|lo) ',
     'ya (lo|la) tiene el equipo',
     '(lo|la|le|te) (comunico|conecto|canalizo|paso) con ',
+    '(ahorita|ya|en seguida|enseguida) (la|lo|le) (notifico|aviso|contacto)',
   ].join('|'),
   'i'
 );
