@@ -152,7 +152,10 @@ pipeline:
       when: "AUTO: la mueve el equipo a mano (estudiantes sin documento, interesados para otra generación)"
     - id: "346b256d-fe1e-4de4-bc26-14665954c22d"
       name: "No contestó"
-      when: "AUTO: se mueve cuando se acaban los follow-ups sin respuesta"
+      when: "Nunca muevas a nadie aquí tú: la usa el sistema cuando se acaban los seguimientos sin respuesta. Si alguien que está aquí vuelve a escribir, muévelo a la etapa que le corresponda según la conversación."
+    # "No contestó" va SIN "AUTO:" a propósito (E148 de errores-bot): con
+    # AUTO, un doctor que revive días después queda congelado ahí (el código
+    # no deja regresar de una etapa AUTO a una manual) y sin follow-ups.
 
 # Sin bloque calendars: CECOD no agenda citas, vende inscripciones a
 # diplomados. Las tools de disponibilidad/agendar/cancelar no se registran.
@@ -224,6 +227,9 @@ escalation:
   # Campo "Motivo de escalación": el Workflow de aviso a Karla lo usa como
   # merge field {{contact.motivo_de_escalacin}}.
   reason_field_id: beTGyxc6b3CmcDis40i2
+  # Nombres que Ana usa al pasar la conversación. Si dice "Karla le escribe"
+  # y no escaló, el código escala solo (E66).
+  handoff_names: [Karla]
 
 # ===========================================================================
 # Loop-guard — corta conversaciones con otros bots

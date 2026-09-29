@@ -1043,10 +1043,24 @@ const HANDOFF = new RegExp(
     'en (breve|un momento|un rato|seguida) (te|le|la|lo) (contacta|escribe|atiende|confirma|llama)',
     'una persona del (equipo|consultorio|negocio) (te|le|la|lo) ',
     'ya (lo|la) tiene el equipo',
+    '(lo|la|le|te) (comunico|conecto|canalizo|paso) con ',
   ].join('|'),
   'i'
 );
 
+/** Frases de handoff que nombran a alguien del equipo (`escalation.handoff_names`). */
+function handoffConNombre(text: string): boolean {
+  const nombres = getConfig().escalation?.handoff_names ?? [];
+  if (nombres.length === 0) return false;
+  const n = nombres.map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const re = new RegExp(
+    `\\b(${n})\\b,?( del equipo[^.!?]*?,?)? (le |la |lo |te |se la |se lo )?` +
+      `(escribe|comparte|confirma|contacta|valida|atiende|manda|pasa|responde|llama|revisa)`,
+    'i'
+  );
+  return re.test(text);
+}
+
 export function pareceHandoff(text: string): boolean {
-  return HANDOFF.test(text);
+  return HANDOFF.test(text) || handoffConNombre(text);
 }

@@ -260,6 +260,11 @@ const EscalationSchema = z.object({
   // de poner el tag, para que el Workflow de aviso al equipo lo use como merge
   // field (las notas de GHL no se pueden leer desde un Workflow).
   reason_field_id: z.string().optional(),
+  // Opcional: nombres de las personas del equipo que el bot menciona al pasar
+  // la conversación ("lo comunico con Karla"). Sin esto, el detector de E66
+  // solo reconoce frases genéricas y un "Karla le escribe" sin escalar deja
+  // al contacto esperando a alguien que nunca fue avisado.
+  handoff_names: z.array(z.string().min(1)).optional(),
 });
 
 const ConfigSchema = z.object({
