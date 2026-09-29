@@ -119,7 +119,7 @@ behavior:
 # ===========================================================================
 
 pipeline:
-  # TODO_ IDs reales del pipeline de CECOD en GHL (Paso 1.3 de la skill).
+  # Pipeline creado por API el 2026-09-28.
   # Una sola tubería para los dos diplomados: las etapas son el PASO en el que
   # va cada doctor, y el diplomado se distingue con tags (dip_rehabilitacion /
   # dip_implantologia) que pone un Workflow de GHL al llenarse el campo
@@ -129,28 +129,28 @@ pipeline:
   # siguen corriendo. Etapas CON "AUTO:" = cierres: el modelo no las ve, y
   # follow-ups y marca-perdido nunca tocan a quien esté en ellas (por eso las
   # que mueve el equipo a mano también van marcadas AUTO:).
-  id: TODO_PIPELINE_ID
+  id: 4xtg4UxgYKn4xeSOgIKy
   name: Diplomados CECOD
   stages:
-    - id: "TODO_STAGE_ID_NUEVO"
+    - id: "134f0241-597f-4614-b382-1eb51ba6dee1"
       name: "Nuevo interesado"
       when: "Etapa de entrada, la crea el Workflow de GHL. No muevas a nadie de regreso aquí."
-    - id: "TODO_STAGE_ID_INFO"
+    - id: "4290ad5e-9f68-47ec-ad31-7ce2bfccbd42"
       name: "Información enviada"
       when: "Cuando ya le compartiste la información del diplomado que le interesa (lo esencial, el link o el precio). No muevas aquí a quien ya está en Datos de pago enviados."
-    - id: "TODO_STAGE_ID_CON_KARLA"
+    - id: "ac446a97-a853-492f-9d7e-94a5bce59fb2"
       name: "Con Karla"
       when: "AUTO: se mueve al escalar a humano. Casi siempre: quiere inscribirse y espera datos bancarios; también comprobante por validar, pide una persona o alumno actual (la nota en GHL dice el motivo)"
-    - id: "TODO_STAGE_ID_PAGO_PENDIENTE"
+    - id: "e899a774-e186-4b4a-8059-6782bfcee6a8"
       name: "Datos de pago enviados"
       when: "AUTO: la mueve Karla a mano cuando ya le mandó los datos bancarios y espera el pago"
-    - id: "TODO_STAGE_ID_INSCRITO"
+    - id: "f5674900-eb9a-455c-be75-42c3f27ea48f"
       name: "Inscrito"
       when: "AUTO: la mueve el equipo a mano cuando valida el pago"
-    - id: "TODO_STAGE_ID_FUTURAS"
+    - id: "527b5fe1-3cf0-4537-b9ac-a5cbe1480ba1"
       name: "Futuras generaciones"
       when: "AUTO: la mueve el equipo a mano (estudiantes sin documento, interesados para otra generación)"
-    - id: "TODO_STAGE_ID_NO_CONTESTO"
+    - id: "346b256d-fe1e-4de4-bc26-14665954c22d"
       name: "No contestó"
       when: "AUTO: se mueve cuando se acaban los follow-ups sin respuesta"
 
@@ -221,9 +221,9 @@ follow_ups:
 escalation:
   tag: requiere_humano
   stage: Con Karla
-  # TODO_ crear en GHL el campo "Motivo de escalación" (texto) y pegar su ID.
-  # El Workflow de aviso a Karla lo usa como merge field.
-  reason_field_id: TODO_CF_MOTIVO_ESCALACION
+  # Campo "Motivo de escalación": el Workflow de aviso a Karla lo usa como
+  # merge field {{contact.motivo_de_escalacin}}.
+  reason_field_id: beTGyxc6b3CmcDis40i2
 
 # ===========================================================================
 # Loop-guard — corta conversaciones con otros bots
@@ -280,17 +280,17 @@ loop_guard:
 # ===========================================================================
 
 custom_fields:
-  # TODO_ crear estos campos en GHL (Settings → Custom Fields) y pegar sus IDs.
+  # Campos creados por API el 2026-09-28 (tipo texto).
   fields:
-    - id: TODO_CF_DIPLOMADO
+    - id: hVoyymYHQ5Bla37f7TBo
       name: Diplomado de interés
       when: "En cuanto el contacto diga qué diplomado le interesa. Guarda exactamente uno de estos valores: Rehabilitación y Estética Avanzada, Implantología Dental, Ambos."
-    - id: TODO_CF_DOCUMENTO
+    - id: Xp6qAg5WYveAqPVtLG6C
       name: Documento profesional
       when: "Cuando el contacto diga con qué documento cuenta. Guarda uno de estos valores: Cédula profesional, Título, Título en trámite, Carta de pasante, Estudiante sin documento."
-    - id: TODO_CF_CIUDAD
+    - id: BLS3KMuXJvIgAw0pN4Wu
       name: Ciudad de residencia
       when: "Cuando el contacto mencione desde qué ciudad viene o dónde ejerce. Guarda solo la ciudad y el estado."
-    - id: TODO_CF_PAGO
+    - id: EHyn0mWWPEfooTVpMwrI
       name: Opción de pago elegida
       when: "Cuando el contacto elija cómo reservar. Guarda uno de estos valores: Inscripción completa, Anticipo 50%, Pago en una sola exhibición."
