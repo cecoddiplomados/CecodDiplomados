@@ -247,6 +247,12 @@ escalation:
 # base (ver la receta al inicio de src/blocklist.ts) y reiniciar en Railway.
 # ===========================================================================
 
+# Mensajes que el WhatsApp Business de CECOD manda solo (el de ausencia fuera
+# de horario). Sin esto Ana los confunde con Karla escribiendo y se calla dos
+# horas: toda la noche. Basta el inicio del texto, tal cual sale en WhatsApp.
+mensajes_automaticos_whatsapp:
+  - "Gracias por comunicarte a *Diplomados CECOD.*"
+
 loop_guard:
   enabled: true
 

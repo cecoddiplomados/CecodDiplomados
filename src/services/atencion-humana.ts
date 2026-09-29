@@ -22,6 +22,7 @@
 import { ChatMessage } from '../types';
 import { getConversationMessages } from './ghl';
 import { fechaGhlAMs } from '../fechas';
+import { getConfig } from '../config';
 
 /** Minutos que el bot se calla después del último mensaje escrito por una persona. */
 export const VENTANA_HUMANO_MIN = 120;
@@ -55,6 +56,13 @@ export async function mensajesDePersona(
     .filter((m) => m.role === 'assistant' && m.origen !== 'humano')
     .map((m) => norm(m.content));
 
+  // Los automáticos del WhatsApp del negocio no son una persona atendiendo.
+  const automaticos = getConfig().mensajes_automaticos_whatsapp.map(norm);
+  const esAutomatico = (body: string) => {
+    const n = norm(body);
+    return automaticos.some((a) => n.startsWith(a));
+  };
+
   const msgs = await getConversationMessages(contactId, 30);
   return msgs
     .filter((m) => {
@@ -63,6 +71,7 @@ export async function mensajesDePersona(
       if (m.meta?.marketplace?.appId) return false;
       const body = (m.body ?? '').trim();
       if (!body) return false;
+      if (esAutomatico(body)) return false;
       const t = fechaGhlAMs(m.dateAdded, tz);
       if (isNaN(t) || t < desde) return false;
       const n = norm(body);

@@ -330,6 +330,12 @@ const ConfigSchema = z.object({
   follow_ups: FollowUpsSchema.optional(),
   escalation: EscalationSchema.optional(),
   loop_guard: LoopGuardSchema.default({}),
+  // Mensajes que el WhatsApp del negocio manda SOLO (mensaje de ausencia, de
+  // bienvenida del WhatsApp Business). En GHL llegan idénticos a uno escrito a
+  // mano, así que sin esta lista el bot los toma por una persona atendiendo y
+  // se calla (E85): con un mensaje de ausencia, toda la noche. Se reconocen
+  // por el INICIO del texto.
+  mensajes_automaticos_whatsapp: z.array(z.string().min(10)).default([]),
   custom_fields: CustomFieldsSchema.optional(),
 })
   // Las etapas del pipeline se referencian POR NOMBRE desde cuatro lugares
