@@ -13,6 +13,11 @@
  *   npm run test:inbound
  */
 
+// inbound.js importa el cliente de Postgres, que exige DATABASE_URL al
+// cargarse. Esta prueba no toca la base (solo funciones puras): con una URL de
+// relleno corre igual en la plantilla y en CI, donde no hay .env.
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://prueba:prueba@localhost:5432/prueba';
+
 const {
   candidatosParaIncorporar,
   descartarYaConocidos,
