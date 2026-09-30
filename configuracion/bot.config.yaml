@@ -260,7 +260,7 @@ mensajes_automaticos_whatsapp:
 # seguimientos. Para los alumnos actuales, que atiende Karla. Quitar el tag
 # regresa a Ana.
 tags_sin_bot:
-  - alumno_actual
+  - alumno_activo
 
 loop_guard:
   enabled: true
