@@ -47,6 +47,7 @@ import {
 } from '../services/follow-up';
 import { contactoBloqueadoAsync } from '../blocklist';
 import { incorporarInboundNuevos } from '../services/inbound';
+import { tieneTagSinBot } from '../services/ghl';
 import { pareceNombreReal } from '../nombres';
 
 /**
@@ -1665,6 +1666,30 @@ export async function startMessageWorker(concurrency = 5) {
         }
       }
 
+      // 2.4 Contacto con un tag de `tags_sin_bot` (ej. alumnos actuales, que
+      // atiende una persona): el bot no contesta ni programa seguimientos. El
+      // mensaje se guarda para que el historial quede completo si se quita el
+      // tag. Falla ABIERTO: si GHL no responde, se contesta.
+      let sinBot = false;
+      try {
+        sinBot = await tieneTagSinBot(contactId, getConfig().tags_sin_bot);
+      } catch (e) {
+        console.warn(`[worker] no se pudieron leer los tags (se contesta): ${(e as Error).message}`);
+      }
+      if (sinBot) {
+        const guardados: ChatMessage[] = [
+          ...history,
+          { role: 'user' as const, content: messageForClaude, ts: new Date().toISOString() },
+        ].slice(-100);
+        await db.query(
+          `UPDATE conversations SET messages = $1::jsonb, last_activity = now() WHERE id = $2`,
+          [JSON.stringify(guardados), conversation.id]
+        );
+        await cancelarFollowUpsPendientes(contactId);
+        console.log(`[worker] contacto con tag sin bot — no se contesta | contact=${contactId}`);
+        return;
+      }
+
       // 2.5 ¿Hay una persona del consultorio atendiendo? Entonces el bot NO
       // contesta (E85/E134). El mensaje del contacto no se tira: se guarda, junto
       // con lo que escribió la persona (marcado como suyo), para que el bot
@@ -1878,11 +1903,27 @@ export async function startMessageWorker(concurrency = 5) {
           const agendoExitoso = toolCalls.some(
             (t) => t.toolName === 'agendar_cita' && t.output.includes('"ok":true')
           );
+          // La conversación la cerró la despedida del propio bot: su último
+          // mensaje no pregunta nada y se despide ("Hasta pronto", "que tenga
+          // buen día"). Pasa cuando el contacto dijo "te aviso / gracias" y el
+          // bot, bien, soltó. Un seguimiento a las 3 horas ahí se lee como
+          // presión (CECOD, 29/09: "los recordatorios ejercen presión
+          // innecesaria"). Se decide sobre la ÚLTIMA burbuja y exige las dos
+          // señales, para no apagar el seguimiento de un lead vivo.
+          const ultimaBurbuja = (replyText.split(/\n{2,}/).filter((x) => x.trim()).pop() ?? '').trim();
+          const cerroConDespedida =
+            !ultimaBurbuja.includes('?') &&
+            /(hasta pronto|que tenga (un )?(buen|excelente|bonito)|buenas noches|buen d[ií]a|le deseo|le estaremos esperando|aqu[ií] le esperamos|cuando (usted )?(guste|se decida)|con gusto le atendemos cuando)/i.test(ultimaBurbuja);
+          if (cerroConDespedida) {
+            await cancelarFollowUpsPendientes(contactId).catch(() => {});
+          }
+
           let yaCerrado =
             agendoExitoso ||
             !!turn.escalado ||
             cancelacionExitosa ||
-            declino;
+            declino ||
+            cerroConDespedida;
 
           if (!yaCerrado && getConfig().calendars) {
             try {

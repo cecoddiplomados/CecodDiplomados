@@ -192,9 +192,12 @@ pipeline:
 
 follow_ups:
   timezone: America/Monterrey
-  window_start_hour: 10
-  window_end_hour: 22
-  cadence_hours: [3, 10]
+  # A doctores no se les escribe de noche: ventana 9 a 20 (un seguimiento a
+  # las 9:34 pm fue parte de la queja del 29/09). Con esa ventana la cadencia
+  # máxima es de 9 horas para que el segundo quepa el mismo día (E51).
+  window_start_hour: 9
+  window_end_hour: 20
+  cadence_hours: [3, 9]
   messages:
     - "Hola {nombre}, le escribo de CECOD. Pudo revisar la información del diplomado? Con gusto le resuelvo cualquier duda para que pueda reservar su lugar, el grupo ya se está formando."
     - "Hola {nombre}, retomo por aquí. La próxima generación inicia el 28 y 29 de noviembre y el cupo es limitado. Le comparto cómo reservar su lugar?"
@@ -252,6 +255,12 @@ escalation:
 # horas: toda la noche. Basta el inicio del texto, tal cual sale en WhatsApp.
 mensajes_automaticos_whatsapp:
   - "Gracias por comunicarte a *Diplomados CECOD.*"
+
+# Contactos con alguno de estos tags en GHL: Ana no les contesta ni les manda
+# seguimientos. Para los alumnos actuales, que atiende Karla. Quitar el tag
+# regresa a Ana.
+tags_sin_bot:
+  - alumno_actual
 
 loop_guard:
   enabled: true

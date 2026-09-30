@@ -59,6 +59,19 @@ export async function sendMessage(
   });
 }
 
+/** Tags actuales del contacto. LANZA si GHL falla: cada caller decide. */
+export async function getContactTags(contactId: string): Promise<string[]> {
+  const data = (await ghlFetch(`/contacts/${contactId}`)) as { contact?: { tags?: string[] } };
+  return (data.contact?.tags ?? []).map((t) => t.toLowerCase());
+}
+
+/** ¿Trae el contacto alguno de los `tags_sin_bot` del yaml? LANZA si GHL falla. */
+export async function tieneTagSinBot(contactId: string, tagsSinBot: string[]): Promise<boolean> {
+  if (tagsSinBot.length === 0) return false;
+  const tags = await getContactTags(contactId);
+  return tagsSinBot.some((t) => tags.includes(t.toLowerCase()));
+}
+
 /**
  * Obtiene el contacto en GHL
  */

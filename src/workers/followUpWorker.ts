@@ -20,7 +20,7 @@
 import { boss } from '../queue';
 import { db } from '../db/client';
 import { ChatMessage, GhlChannel } from '../types';
-import { findContactOpportunity, moveOpportunityToStage, sendMessage } from '../services/ghl';
+import { findContactOpportunity, moveOpportunityToStage, sendMessage, tieneTagSinBot } from '../services/ghl';
 import { generateFollowUpMessage, normalizeWhatsAppFormat } from '../services/claude';
 import { contactoBloqueadoAsync } from '../blocklist';
 import { pareceNombreReal } from '../nombres';
@@ -270,9 +270,17 @@ async function handleFollowUp(data: FollowUpJobData): Promise<void> {
   // — perder un recordatorio cuesta menos que escribirle encima a quien lo
   // está atendiendo.
   try {
-    const humanos = await mensajesDePersona(contactId, history, zonaDelNegocio());
+    // Desde que se PROGRAMÓ, no solo las últimas 2 horas: si alguien del
+    // equipo atendió en medio, este seguimiento ya no le toca al bot. Caso
+    // real (CECOD, 29/09): la asistente contestó a mano a las 10:14 y a las
+    // 17:34 salió el seguimiento del bot encima de ella.
+    const humanos = await mensajesDePersona(contactId, history, zonaDelNegocio(), scheduledAt);
     if (humanos.length > 0) {
-      console.log(`[follow-up] una persona está atendiendo, skip | contact=${contactId} attempt=${attempt}`);
+      console.log(`[follow-up] una persona atendió desde que se programó, skip | contact=${contactId} attempt=${attempt}`);
+      return;
+    }
+    if (await tieneTagSinBot(contactId, getConfig().tags_sin_bot)) {
+      console.log(`[follow-up] contacto con tag sin bot, skip | contact=${contactId} attempt=${attempt}`);
       return;
     }
   } catch (e) {
@@ -385,6 +393,18 @@ async function handleMarkLost(data: MarkLostJobData): Promise<void> {
   const lastUserMs = lastUserMsg ? new Date(lastUserMsg.ts).getTime() : 0;
   if (lastUserMs > scheduledAt) {
     console.log(`[mark-lost] cliente respondió | contact=${contactId}`);
+    return;
+  }
+
+  // 3b. Si una persona del equipo lo atendió desde que se programó, no es un
+  // lead perdido: lo tiene alguien. Falla CERRADO (no se marca).
+  try {
+    if ((await mensajesDePersona(contactId, history, zonaDelNegocio(), scheduledAt)).length > 0) {
+      console.log(`[mark-lost] una persona lo atendió, skip | contact=${contactId}`);
+      return;
+    }
+  } catch (e) {
+    console.warn(`[mark-lost] no se pudo revisar si lo atendió una persona — no se marca: ${(e as Error).message}`);
     return;
   }
 

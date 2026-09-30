@@ -49,9 +49,17 @@ export interface MensajeDePersona {
 export async function mensajesDePersona(
   contactId: string,
   history: ChatMessage[],
-  tz: string
+  tz: string,
+  /**
+   * Mira desde aquí aunque sea más atrás que la ventana normal. Los
+   * seguimientos lo usan con el momento en que se programaron: si una persona
+   * del equipo atendió en medio, aunque haya sido hace 7 horas, el seguimiento
+   * automático ya no le corresponde al bot.
+   */
+  desdeMs?: number
 ): Promise<MensajeDePersona[]> {
-  const desde = Date.now() - VENTANA_HUMANO_MIN * 60 * 1000;
+  const ventana = Date.now() - VENTANA_HUMANO_MIN * 60 * 1000;
+  const desde = typeof desdeMs === 'number' && desdeMs < ventana ? desdeMs : ventana;
   const delBot = history
     .filter((m) => m.role === 'assistant' && m.origen !== 'humano')
     .map((m) => norm(m.content));

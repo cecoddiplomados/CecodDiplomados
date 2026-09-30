@@ -336,6 +336,10 @@ const ConfigSchema = z.object({
   // se calla (E85): con un mensaje de ausencia, toda la noche. Se reconocen
   // por el INICIO del texto.
   mensajes_automaticos_whatsapp: z.array(z.string().min(10)).default([]),
+  // Tags que apagan al bot para ese contacto: no le contesta ni le manda
+  // seguimientos (ej. alumnos actuales, que atiende una persona). Se ponen y
+  // se quitan a mano en GHL; quitar el tag regresa al bot.
+  tags_sin_bot: z.array(z.string().min(1)).default([]),
   custom_fields: CustomFieldsSchema.optional(),
 })
   // Las etapas del pipeline se referencian POR NOMBRE desde cuatro lugares
