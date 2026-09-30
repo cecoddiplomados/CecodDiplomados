@@ -1913,7 +1913,7 @@ export async function startMessageWorker(concurrency = 5) {
           const ultimaBurbuja = (replyText.split(/\n{2,}/).filter((x) => x.trim()).pop() ?? '').trim();
           const cerroConDespedida =
             !ultimaBurbuja.includes('?') &&
-            /(hasta pronto|que tenga (un )?(buen|excelente|bonito)|buenas noches|buen d[ií]a|le deseo|le estaremos esperando|aqu[ií] le esperamos|cuando (usted )?(guste|se decida)|con gusto le atendemos cuando)/i.test(ultimaBurbuja);
+            /(hasta pronto|que tenga (un )?(buen|excelente|bonito)|buenas noches|buen d[ií]a|le deseo|le estaremos esperando|aqu[ií] le esperamos|con gusto le atendemos cuando)/i.test(ultimaBurbuja);
           if (cerroConDespedida) {
             await cancelarFollowUpsPendientes(contactId).catch(() => {});
           }
