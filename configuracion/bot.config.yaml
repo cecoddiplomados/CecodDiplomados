@@ -257,10 +257,11 @@ mensajes_automaticos_whatsapp:
   - "Gracias por comunicarte a *Diplomados CECOD.*"
 
 # Contactos con alguno de estos tags en GHL: Ana no les contesta ni les manda
-# seguimientos. Para los alumnos actuales, que atiende Karla. Quitar el tag
-# regresa a Ana.
+# seguimientos. Alumnos actuales y proveedores, que atiende Karla. Quitar el
+# tag regresa a Ana.
 tags_sin_bot:
   - alumno_activo
+  - proveedores
 
 loop_guard:
   enabled: true
