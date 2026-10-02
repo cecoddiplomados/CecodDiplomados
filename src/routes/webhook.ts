@@ -116,7 +116,23 @@ function makeGhlWebhookHandler(channel: GhlChannel) {
       let textForClaude: string;
       let conMedia = false;
       try {
-        const inc = await incorporarInboundNuevos(contactId, { phone, contactName, channel });
+        // Contacto nuevo: el webhook llega en el mismo segundo en que GHL crea
+        // la conversación, y su búsqueda todavía no la encuentra. Se reintenta
+        // unos segundos (ya se le contestó 200 a GHL, el tiempo no apura).
+        // CECOD, 2/10/2026: 12 de 13 interesados sin respuesta eran
+        // conversaciones nuevas, y el barrido que debía rescatarlos estaba
+        // caído. Ver E173.
+        let inc = await incorporarInboundNuevos(contactId, { phone, contactName, channel });
+        for (let intento = 1; inc.sinConversacion && intento <= 3; intento++) {
+          await new Promise((r) => setTimeout(r, 2000 * intento));
+          inc = await incorporarInboundNuevos(contactId, { phone, contactName, channel });
+        }
+        if (inc.sinConversacion) {
+          // Sigue sin aparecer: el mensaje NO se descarta. Se trata igual que
+          // cuando GHL no contesta (rama del catch): texto del payload, marcado
+          // como "sin id" para que el barrido no lo duplique.
+          throw new Error('la conversación todavía no aparece en GHL tras 3 reintentos');
+        }
         if (inc.incorporados.length === 0) {
           // Ya estaban incorporados (otro webhook de la misma ráfaga, el inicio
           // del turno o el barrido). Encolar otra vez solo daría un turno vacío.

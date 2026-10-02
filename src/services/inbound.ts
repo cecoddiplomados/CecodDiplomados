@@ -153,6 +153,12 @@ export interface Incorporacion {
   incorporados: MensajeInbound[];
   /** El texto que se agregó al pending, ya con los marcadores de media. */
   texto: string;
+  /**
+   * GHL todavía no tiene la conversación (contacto nuevo: el webhook llega en
+   * el mismo segundo en que se crea y la búsqueda aún no la indexa). NO es
+   * "no hay nada nuevo": el que llama debe reintentar o usar el payload.
+   */
+  sinConversacion?: boolean;
 }
 
 async function textosSinId(contactId: string): Promise<TextoSinId[]> {
@@ -179,7 +185,7 @@ export async function incorporarInboundNuevos(
   const info = await getLatestMessageInfo(contactId);
   const canal = info?.channel ?? datos.channel ?? 'WhatsApp';
   const vacio: Incorporacion = { canal, incorporados: [], texto: '' };
-  if (!info) return vacio;
+  if (!info) return { ...vacio, sinConversacion: true };
 
   const candidatos = candidatosParaIncorporar(info.inbound);
   if (candidatos.length === 0) return vacio;
