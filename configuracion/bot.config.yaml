@@ -256,6 +256,23 @@ escalation:
 mensajes_automaticos_whatsapp:
   - "Gracias por comunicarte a *Diplomados CECOD.*"
 
+# Horario en que atiende Karla. Ahí Ana NO contesta: guarda el mensaje y, si al
+# cerrar la jornada nadie le contestó a ese contacto, lo retoma. Los seguimientos
+# automáticos tampoco salen en este horario: se recorren al cierre. Fuera de
+# horario (noches, sábado en la tarde, domingo) Ana atiende todo.
+# Formato HH:MM-HH:MM; a la hora de cierre exacta ya contesta Ana.
+horario_equipo:
+  timezone: America/Monterrey
+  dias:
+    lunes: ["08:30-16:30"]
+    martes: ["08:30-16:30"]
+    miercoles: ["08:30-16:30"]
+    jueves: ["08:30-16:30"]
+    viernes: ["08:30-16:30"]
+    sabado: ["08:30-13:00"]
+    domingo: []
+  retomar_al_cierre: true
+
 # Contactos con alguno de estos tags en GHL: Ana no les contesta ni les manda
 # seguimientos. Alumnos actuales y proveedores, que atiende Karla. Quitar el
 # tag regresa a Ana.

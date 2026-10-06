@@ -7,6 +7,7 @@ import { webhookRouter } from './routes/webhook';
 import { startMessageWorker } from './workers/messageWorker';
 import { startFollowUpWorker } from './workers/followUpWorker';
 import { startReconciliadorWorker } from './workers/reconciliadorWorker';
+import { startRetomarWorker } from './workers/retomarWorker';
 import { boss, barrerPendientes, QUEUE_NAME } from './queue';
 import { db } from './db/client';
 import { SCHEMA_SQL } from './db/schema';
@@ -115,6 +116,10 @@ async function main() {
   // El barrido de mensajes que GHL no avisó (E144). No es opcional: el defecto
   // es de GHL, no de este negocio. Ver workers/reconciliadorWorker.ts.
   await startReconciliadorWorker();
+
+  // Retoma al cierre de la jornada lo que llegó en horario del equipo y nadie
+  // contestó. Solo hace algo si hay `horario_equipo` en el yaml.
+  await startRetomarWorker();
 
   // El worker de follow-ups solo arranca si hay bloque follow_ups: en el yaml.
   if (config.follow_ups) {

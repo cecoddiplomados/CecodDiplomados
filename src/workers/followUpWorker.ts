@@ -24,6 +24,7 @@ import { findContactOpportunity, moveOpportunityToStage, sendMessage, tieneTagSi
 import { generateFollowUpMessage, normalizeWhatsAppFormat } from '../services/claude';
 import { contactoBloqueadoAsync } from '../blocklist';
 import { pareceNombreReal } from '../nombres';
+import { ventanaEquipoActual } from '../services/horario-equipo';
 import { mensajesDePersona } from '../services/atencion-humana';
 import { zonaDelNegocio } from '../services/ghl-calendar';
 import { getConfig } from '../config';
@@ -75,10 +76,15 @@ async function deferIfOutOfWindow(
   const fu = getConfig().follow_ups;
   if (!fu) return false;
 
+  // En horario del equipo (`horario_equipo`) no sale nada automático: se
+  // recorre al cierre, y ahí se vuelve a ajustar a la ventana de envío.
+  const ventanaEquipo = ventanaEquipoActual();
   const h = nowHourInZone(fu.timezone);
-  if (h >= fu.window_start_hour && h < fu.window_end_hour) return false;
+  if (!ventanaEquipo && h >= fu.window_start_hour && h < fu.window_end_hour) return false;
 
-  const nextSlot = clampToWindow(Date.now() + 5 * 60 * 1000);
+  const nextSlot = ventanaEquipo
+    ? clampToWindow(ventanaEquipo.finMs + 2 * 60 * 1000)
+    : clampToWindow(Date.now() + 5 * 60 * 1000);
   await boss.send(queueName, data, {
     singletonKey: `${contactId}:defer:${data.scheduledAt}:${Date.now()}`,
     startAfter: new Date(nextSlot),

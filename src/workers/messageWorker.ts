@@ -48,6 +48,9 @@ import {
 import { contactoBloqueadoAsync } from '../blocklist';
 import { incorporarInboundNuevos } from '../services/inbound';
 import { tieneTagSinBot } from '../services/ghl';
+import { ventanaEquipoActual } from '../services/horario-equipo';
+import { programarRetomar } from './retomarWorker';
+import { VENTANA_HUMANO_MIN } from '../services/atencion-humana';
 import { pareceNombreReal } from '../nombres';
 
 /**
@@ -1690,6 +1693,38 @@ export async function startMessageWorker(concurrency = 5) {
         return;
       }
 
+      // 2.45 Horario del equipo (`horario_equipo`): ahí atiende una persona y el
+      // bot no contesta. El mensaje se guarda en el historial, se marca desde
+      // cuándo nadie lo ha contestado y se programa una revisión al cierre:
+      // si al terminar la jornada nadie lo atendió, el bot lo retoma
+      // (workers/retomarWorker.ts). Los seguimientos ya programados no se
+      // cancelan: su propio worker los recorre al cierre y no salen si una
+      // persona atendió.
+      const ventanaEquipo = ventanaEquipoActual();
+      if (ventanaEquipo) {
+        const ahora = new Date().toISOString();
+        const guardados: ChatMessage[] = [
+          ...history,
+          { role: 'user' as const, content: messageForClaude, ts: ahora },
+        ].slice(-100);
+        await db.query(
+          `UPDATE conversations SET messages = $1::jsonb, last_activity = now(),
+                  metadata = COALESCE(metadata, '{}'::jsonb)
+                    || jsonb_build_object('pendiente_horario', COALESCE(metadata->>'pendiente_horario', $2::text))
+            WHERE id = $3`,
+          [JSON.stringify(guardados), ahora, conversation.id]
+        );
+        if (getConfig().horario_equipo?.retomar_al_cierre !== false) {
+          await programarRetomar({ contactId, phone, contactName, channel }, ventanaEquipo.finMs).catch((e) =>
+            console.warn(`[worker] no se pudo programar el retomar: ${(e as Error).message}`)
+          );
+        }
+        console.log(
+          `[worker] horario del equipo — el bot no contesta; se revisa al cierre (${new Date(ventanaEquipo.finMs).toISOString()}) | contact=${contactId}`
+        );
+        return;
+      }
+
       // 2.5 ¿Hay una persona del consultorio atendiendo? Entonces el bot NO
       // contesta (E85/E134). El mensaje del contacto no se tira: se guarda, junto
       // con lo que escribió la persona (marcado como suyo), para que el bot
@@ -1697,9 +1732,23 @@ export async function startMessageWorker(concurrency = 5) {
       //
       // Falla ABIERTO: si GHL no responde, el bot contesta. Callar por un
       // timeout deja al paciente hablando solo.
+      //
+      // Se mira desde el último mensaje que el bot tiene guardado, no solo las
+      // últimas 2 horas: lo que una persona escribió antes (ej. en la mañana,
+      // en horario del equipo) no pausa al bot, pero entra al historial para
+      // que el bot no conteste como si nadie hubiera hablado con el contacto.
       let humanos: Awaited<ReturnType<typeof mensajesDePersona>> = [];
       try {
-        humanos = await mensajesDePersona(contactId, history, zonaDelNegocio());
+        const ultimoTs = history.length ? Date.parse(history[history.length - 1].ts) : NaN;
+        const desdeContexto = isNaN(ultimoTs) ? undefined : ultimoTs;
+        const todos = await mensajesDePersona(contactId, history, zonaDelNegocio(), desdeContexto);
+        const corte = Date.now() - VENTANA_HUMANO_MIN * 60 * 1000;
+        humanos = todos.filter((h) => Date.parse(h.ts) >= corte);
+        const anteriores = todos.filter((h) => Date.parse(h.ts) < corte);
+        if (humanos.length === 0 && anteriores.length > 0) {
+          history.push(...nuevosParaHistorial(anteriores, history));
+          console.log(`[worker] ${anteriores.length} mensaje(s) de una persona del equipo agregados al contexto | contact=${contactId}`);
+        }
       } catch (e) {
         console.warn(`[worker] no se pudo revisar si atiende una persona (se contesta): ${(e as Error).message}`);
       }
@@ -1720,6 +1769,14 @@ export async function startMessageWorker(concurrency = 5) {
         );
         return;
       }
+
+      // El bot va a contestar: lo que estaba pendiente de horario del equipo
+      // queda atendido en este turno (el historial ya trae esos mensajes).
+      await db
+        .query(`UPDATE conversations SET metadata = COALESCE(metadata, '{}'::jsonb) - 'pendiente_horario' WHERE id = $1`, [
+          conversation.id,
+        ])
+        .catch(() => {});
 
       // 3. Llamar a Claude
       // El contactId se pasa al handler via closure — lo necesitan las tools

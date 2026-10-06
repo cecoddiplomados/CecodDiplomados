@@ -340,6 +340,17 @@ const ConfigSchema = z.object({
   // seguimientos (ej. alumnos actuales, que atiende una persona). Se ponen y
   // se quitan a mano en GHL; quitar el tag regresa al bot.
   tags_sin_bot: z.array(z.string().min(1)).default([]),
+  // Horario en que atiende una PERSONA: el bot no contesta ahí, guarda el
+  // mensaje y lo retoma al cierre si nadie lo atendió. Los seguimientos se
+  // recorren al cierre. Sin este bloque el bot contesta a toda hora.
+  horario_equipo: z
+    .object({
+      timezone: z.string().min(1),
+      // lunes..domingo → ["08:30-16:30"]. Día ausente o [] = el bot atiende todo el día.
+      dias: z.record(z.array(z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/, 'formato HH:MM-HH:MM'))),
+      retomar_al_cierre: z.boolean().default(true),
+    })
+    .optional(),
   custom_fields: CustomFieldsSchema.optional(),
 })
   // Las etapas del pipeline se referencian POR NOMBRE desde cuatro lugares
