@@ -198,6 +198,13 @@ follow_ups:
   window_start_hour: 9
   window_end_hour: 20
   cadence_hours: [3, 9]
+  # Tope entre tandas (E186): cada vez que el doctor contesta ("gracias",
+  # "ok") arranca una tanda nueva de follow-ups. Sin este tope, a quien
+  # contesta con cortesía le llega un recordatorio tras otro (caso real en
+  # Dr. Romero: 3 en 18h y "ya van 4 veces"). No se manda el primer follow-up
+  # de una tanda si el último salió hace menos de estas horas. No frena el 2º
+  # toque de la misma tanda. Default 48 si se omite.
+  min_gap_hours: 48
   messages:
     - "Hola {nombre}, le escribo de CECOD. Pudo revisar la información del diplomado? Con gusto le resuelvo cualquier duda para que pueda reservar su lugar, el grupo ya se está formando."
     - "Hola {nombre}, retomo por aquí. La próxima generación inicia el 28 y 29 de noviembre y el cupo es limitado. Le comparto cómo reservar su lugar?"

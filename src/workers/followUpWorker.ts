@@ -43,6 +43,12 @@ import {
  * seguimiento que hacer") y el código lo mandaba tal cual por WhatsApp. */
 const NO_FOLLOW_UP_SENTINEL = 'NO_FOLLOW_UP';
 
+/** Sentinel para un doctor real que ya cerró la conversación ("lo pienso y
+ * yo le escribo", se despidió, se quejó de que le escriben de más). No se
+ * manda nada, pero no se cancelan los demás jobs: el marca-perdido tiene que
+ * llegar a "No contestó" igual (E186). */
+const NO_INSISTIR_SENTINEL = 'NO_INSISTIR';
+
 interface FollowUpJobData {
   contactId: string;
   attempt: number;
@@ -211,14 +217,14 @@ async function handleFollowUp(data: FollowUpJobData): Promise<void> {
 
   // 2. Cargar conversación
   const r = await db.query(
-    `SELECT messages, metadata, contact_name, follow_ups_sent, last_bot_message_at FROM conversations WHERE contact_id = $1`,
+    `SELECT messages, metadata, contact_name, follow_ups_sent, last_bot_message_at, last_follow_up_at FROM conversations WHERE contact_id = $1`,
     [contactId]
   );
   if (r.rows.length === 0) {
     console.log(`[follow-up] sin conversación | contact=${contactId}`);
     return;
   }
-  const { messages, metadata, contact_name, follow_ups_sent, last_bot_message_at } = r.rows[0];
+  const { messages, metadata, contact_name, follow_ups_sent, last_bot_message_at, last_follow_up_at } = r.rows[0];
   const history: ChatMessage[] = messages || [];
 
   // 3. Si el bot escribió DESPUÉS de programar este job, esta cadencia está stale
@@ -239,6 +245,21 @@ async function handleFollowUp(data: FollowUpJobData): Promise<void> {
   // 5. Idempotencia: si ya enviamos un follow-up >= attempt, skip
   if ((follow_ups_sent ?? 0) >= attempt) {
     console.log(`[follow-up] ya enviado attempt=${attempt} | contact=${contactId}`);
+    return;
+  }
+
+  // 5b. Tope entre tandas (E186). Cada respuesta del contacto ("gracias") es
+  // un turno nuevo que reinicia follow_ups_sent y programa otra tanda; sin
+  // este tope, a quien contesta con cortesía le sale un recordatorio tras
+  // otro (Dr. Romero, 17-oct-2026: 3 en 18h y "ya van 4 veces"). Solo frena
+  // si el último follow-up es de una tanda ANTERIOR (salió antes de
+  // scheduledAt): el 2º toque de esta misma tanda sale después y no se toca.
+  const minGapHours = fu.min_gap_hours ?? 48;
+  const lastFuMs = last_follow_up_at ? new Date(last_follow_up_at).getTime() : 0;
+  if (lastFuMs && lastFuMs < scheduledAt && (Date.now() - lastFuMs) / HOUR_MS < minGapHours) {
+    console.log(
+      `[follow-up] ya hubo uno hace ${((Date.now() - lastFuMs) / HOUR_MS).toFixed(1)}h, no se insiste | contact=${contactId} attempt=${attempt}`
+    );
     return;
   }
 
@@ -314,7 +335,13 @@ async function handleFollowUp(data: FollowUpJobData): Promise<void> {
     text = renderFollowUpMessage(template, contact_name ?? null);
   }
 
-  if (text.trim() === NO_FOLLOW_UP_SENTINEL) {
+  if (text.includes(NO_INSISTIR_SENTINEL)) {
+    // Sin cancelar los demás jobs: el marca-perdido sigue en pie.
+    console.log(`[follow-up] el cliente ya cerró la conversación, no se insiste | contact=${contactId} attempt=${attempt}`);
+    return;
+  }
+
+  if (text.includes(NO_FOLLOW_UP_SENTINEL)) {
     console.log(`[follow-up] contacto no parece ser un cliente real, se cancela el seguimiento | contact=${contactId}`);
     await cancelarFollowUpsPendientes(contactId);
     return;
@@ -357,6 +384,7 @@ async function handleFollowUp(data: FollowUpJobData): Promise<void> {
     `UPDATE conversations
      SET messages = $1::jsonb,
          follow_ups_sent = $2,
+         last_follow_up_at = now(),
          last_activity = now()
      WHERE contact_id = $3`,
     [JSON.stringify(newMessages), attempt, contactId]
