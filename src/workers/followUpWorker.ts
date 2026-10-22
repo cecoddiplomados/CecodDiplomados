@@ -21,7 +21,13 @@ import { boss } from '../queue';
 import { db } from '../db/client';
 import { ChatMessage, GhlChannel } from '../types';
 import { findContactOpportunity, moveOpportunityToStage, sendMessage, tieneTagSinBot } from '../services/ghl';
-import { generateFollowUpMessage, normalizeWhatsAppFormat } from '../services/claude';
+import {
+  generateFollowUpMessage,
+  extraerMensajeSeguimiento,
+  normalizeWhatsAppFormat,
+  stripReasoning,
+} from '../services/claude';
+import { motivoMetaComentario } from '../meta-guard';
 import { contactoBloqueadoAsync } from '../blocklist';
 import { pareceNombreReal } from '../nombres';
 import { ventanaEquipoActual } from '../services/horario-equipo';
@@ -325,10 +331,14 @@ async function handleFollowUp(data: FollowUpJobData): Promise<void> {
   }
 
   let text: string;
+  // Solo lo generado por Claude pasa por extraerMensajeSeguimiento; el
+  // respaldo del yaml no trae etiquetas.
+  let generado = false;
   try {
     const horasDesdeClienteReal = (Date.now() - lastUserMs) / HOUR_MS;
     text = await generateFollowUpMessage(history, attempt, fu.cadence_hours.length, horasDesdeClienteReal);
     if (!text) throw new Error('respuesta vacía');
+    generado = true;
     console.log(`[follow-up] generado contextual | contact=${contactId} attempt=${attempt}`);
   } catch (e) {
     console.warn(`[follow-up] generación contextual falló, uso respaldo del yaml: ${(e as Error).message}`);
@@ -344,6 +354,34 @@ async function handleFollowUp(data: FollowUpJobData): Promise<void> {
   if (text.includes(NO_FOLLOW_UP_SENTINEL)) {
     console.log(`[follow-up] contacto no parece ser un cliente real, se cancela el seguimiento | contact=${contactId}`);
     await cancelarFollowUpsPendientes(contactId);
+    return;
+  }
+
+  if (generado) {
+    const mensaje = extraerMensajeSeguimiento(text);
+    if (!mensaje) {
+      console.warn(`[follow-up] descartado, sin <mensaje> en la respuesta | contact=${contactId} crudo=${JSON.stringify(text.slice(0, 300))}`);
+      return;
+    }
+    // Dentro de la etiqueta todavía puede venir una línea de narración
+    // ("déjeme revisar…"): stripReasoning la quita y deja el resto.
+    const { text: limpio, removed } = stripReasoning(mensaje);
+    if (removed.length > 0) {
+      console.warn(
+        `[follow-up] Razonamiento interceptado (${removed.length} frag): ` +
+          removed.map((r) => JSON.stringify(r.slice(0, 160))).join(' | ')
+      );
+    }
+    text = limpio;
+  }
+
+  // Última barrera: un follow-up que es análisis o narración no sale. No hay
+  // línea neutral aquí a propósito: el contacto no escribió, así que no saber
+  // nada es mejor que un "hola" vacío; el siguiente toque o el paso a "No
+  // contestó" siguen en pie.
+  const motivo = motivoMetaComentario(text);
+  if (motivo) {
+    console.warn(`[meta-guard] follow-up descartado (${motivo}) | contact=${contactId} texto=${JSON.stringify(text.slice(0, 300))}`);
     return;
   }
 

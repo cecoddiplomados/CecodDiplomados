@@ -1795,6 +1795,7 @@ export async function startMessageWorker(concurrency = 5) {
       let replyText: string;
       let toolCalls: Array<{ toolName: string; output: string }>;
       let cortado = false;
+      let descartado = false;
       let abre = false;
       // Estado compartido entre las tools de este turno (ver TurnContext).
       // El label es para la tarjeta del pipeline si hay que crearla: nombre
@@ -1812,6 +1813,7 @@ export async function startMessageWorker(concurrency = 5) {
         replyText = result.text;
         toolCalls = result.toolCalls;
         cortado = result.cortado;
+        descartado = result.descartado;
         abre = result.abre;
 
         // E118: los cortes (max_tokens, refusal) ya los maneja getClaudeResponse:
@@ -1845,12 +1847,16 @@ export async function startMessageWorker(concurrency = 5) {
       // solo con tools) o se cortó, el paciente recibe una línea neutral y la
       // conversación pasa a una persona. Antes: silencio después de prometer
       // algo (E131), o "...un anticipo de $500 por persona, que se le" (E118).
+      // Aquí cae también lo que tiró meta-guard (`descartado`): si el modelo
+      // solo escribió su razonamiento ("la escalación se completó…"), no queda
+      // texto y el doctor recibe la línea neutral en vez de silencio. No lleva
+      // manejo propio para no escalar dos veces.
       const neutral = turn.escalado
         ? 'Listo, ya le pasé tu mensaje al equipo y en un momento te escriben por aquí 😊'
         : 'Gracias por tu mensaje 😊 En un momento una persona del equipo te confirma por aquí.';
       if (!replyText.trim() || cortado) {
         console.warn(
-          `[worker] respuesta ${cortado ? 'cortada' : 'vacía'} — se manda línea neutral y se escala | contact=${contactId}`
+          `[worker] respuesta ${cortado ? 'cortada' : descartado ? 'vacía (meta-guard la descartó)' : 'vacía'} — se manda línea neutral y se escala | contact=${contactId}`
         );
         replyText = replyText.trim() ? `${replyText.trim()}\n\n${neutral}` : neutral;
         if (!turn.escalado) {
@@ -1858,7 +1864,9 @@ export async function startMessageWorker(concurrency = 5) {
             {
               motivo_escalacion: cortado
                 ? 'La respuesta del bot se cortó y no se pudo completar. Revisar la conversación y contestar a mano.'
-                : 'El bot no generó una respuesta que se pudiera mandar. Revisar la conversación y contestar a mano.',
+                : descartado
+                  ? 'El bot escribió su razonamiento interno en vez de la respuesta y se descartó. Revisar la conversación y contestar a mano.'
+                  : 'El bot no generó una respuesta que se pudiera mandar. Revisar la conversación y contestar a mano.',
             },
             contactId,
             turn

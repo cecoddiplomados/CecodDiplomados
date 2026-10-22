@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ChatMessage, GhlChannel } from '../types';
 import { buildSystemPrompt } from '../prompts/system';
 import { getConfig } from '../config';
+import { motivoMetaComentario } from '../meta-guard';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -379,6 +380,12 @@ export interface ClaudeResponse {
   cortado: boolean;
   /** Si este turno abre la conversación (mismo corte de sesión que el historial). */
   abre: boolean;
+  /**
+   * true si meta-guard tiró al menos un texto del modelo en este turno. Si con
+   * eso la respuesta quedó vacía, el worker manda la línea neutral y escala
+   * (el mismo paso 3.6 que ya cubre la respuesta vacía, E131).
+   */
+  descartado: boolean;
 }
 
 /**
@@ -574,6 +581,7 @@ export async function getClaudeResponse(
   const MAX_ITERATIONS = 10;
   let reintentoPorCorte = false;
   let cortado = false;
+  let descartado = false;
 
   while (iterations < MAX_ITERATIONS) {
     iterations++;
@@ -632,8 +640,18 @@ export async function getClaudeResponse(
       .map((b) => (b as Anthropic.TextBlock).text)
       .join('')
       .trim();
+    // Después de una tool el modelo a veces narra lo que hizo ("la escalación
+    // se completó exitosamente, el contacto ya está clasificado…") en vez de
+    // hablarle al contacto; en el bot del Dr. Romero eso le llegó a una
+    // paciente. Ese texto no entra ni como preámbulo ni como cierre: se queda
+    // lo último que sí era para el contacto. Si no queda nada, el worker manda
+    // la línea neutral y escala.
     if (turnText) {
-      if (response.stop_reason === 'tool_use') preambulos.push(turnText);
+      const motivo = motivoMetaComentario(turnText);
+      if (motivo) {
+        console.warn(`[meta-guard] respuesta descartada (${motivo}) | texto=${JSON.stringify(turnText.slice(0, 300))}`);
+        descartado = true;
+      } else if (response.stop_reason === 'tool_use') preambulos.push(turnText);
       else finalText = turnText;
     }
 
@@ -691,7 +709,7 @@ export async function getClaudeResponse(
     );
   }
 
-  return { text: cleanText, toolCalls, stopReason: lastStopReason, cortado, abre };
+  return { text: cleanText, toolCalls, stopReason: lastStopReason, cortado, abre, descartado };
 }
 
 /**
@@ -721,7 +739,7 @@ export async function generateFollowUpMessage(
   const instruction =
     `[INSTRUCCIÓN INTERNA DE SEGUIMIENTO — esto NO es un mensaje del contacto, no lo trates como tal ni le respondas como si él hubiera escrito esto]\n` +
     `El contacto dejó de responder hace aproximadamente ${Math.round(hoursIdle)} horas. Este es tu mensaje de seguimiento #${attempt} de ${totalAttempts} máximo antes de dejarlo en paz.\n` +
-    `Genera SOLO el texto exacto que le vas a mandar por WhatsApp — nada de explicaciones tuyas, nada de herramientas, nada de meta-comentarios.\n` +
+    `Escribe el texto exacto que le vas a mandar por WhatsApp dentro de <mensaje></mensaje>. Solo lo que va dentro de esas etiquetas le llega al contacto; si no las usas, no se manda nada. Dentro va únicamente el mensaje, escrito para él o ella, de "usted".\n` +
     `Basándote en TODA la conversación de arriba, retoma exactamente lo que quedó pendiente: si faltaba un dato para agendar (nombre, horario, motivo), pídelo directo; si estaba viendo información de algo específico y no llegó a cerrar, retómalo conectado a lo que preguntó; si ya tenía horarios ofrecidos sin elegir, recuérdaselos. NO mandes un saludo genérico tipo "¿pudiste ver la información?" a menos que genuinamente eso sea lo único que quedó pendiente — sé específico al contexto real de esta conversación.\n` +
     `Tono: un recordatorio amable que retoma lo pendiente, NUNCA presión. No repitas una urgencia que ya se mencionó en la conversación (cupo limitado, "se llena", fechas límite): si ya salió, no la vuelvas a decir. Nada de "solo para recordarle" seguido de la misma venta.\n` +
     `Si por el contexto de la conversación es claro que este contacto NO es un cliente/paciente real (ej. es un proveedor ofreciendo un servicio, publicidad, spam, un número equivocado, alguien buscando trabajo), no generes ningún mensaje de seguimiento. En ese caso responde ÚNICAMENTE con el texto exacto NO_FOLLOW_UP (sin comillas, sin explicación, sin nada más alrededor) — nunca expliques tu razonamiento como si fuera el mensaje a enviar.\n` +
@@ -756,24 +774,31 @@ export async function generateFollowUpMessage(
     throw new Error(`follow-up cortado (stop=${response.stop_reason})`);
   }
 
-  const raw = response.content
+  // Se devuelve crudo, con las etiquetas: el worker revisa primero los
+  // sentinels (NO_FOLLOW_UP / NO_INSISTIR van sin etiqueta), después saca lo
+  // de <mensaje> con extraerMensajeSeguimiento y solo a eso le pasa
+  // stripReasoning y meta-guard. Filtrar aquí antes de extraer podía tirar el
+  // párrafo que traía la etiqueta y dejar sin mensaje uno que estaba bien.
+  return response.content
     .filter((b) => b.type === 'text')
     .map((b) => (b as Anthropic.TextBlock).text)
     .join('')
     .trim();
+}
 
-  // El sentinel NO_FOLLOW_UP pasa intacto (no matchea ningún patrón); lo que
-  // se filtra acá es la otra mitad del mismo bug: que el modelo devuelva su
-  // análisis como si fuera el texto a mandar. Si no queda nada, el worker cae
-  // al mensaje predefinido del yaml.
-  const { text, removed } = stripReasoning(raw);
-  if (removed.length > 0) {
-    console.warn(
-      `[follow-up] Razonamiento interceptado (${removed.length} frag): ` +
-        removed.map((r) => JSON.stringify(r.slice(0, 160))).join(' | ')
-    );
-  }
-  return text;
+/**
+ * Saca el mensaje de seguimiento de entre <mensaje></mensaje>. Todo lo que el
+ * modelo escriba fuera de las etiquetas (su análisis, su evaluación) se tira.
+ * Sin etiquetas devuelve null y el follow-up no sale: antes se mandaba la
+ * respuesta completa, y en el bot del Dr. Romero a una paciente le llegó el
+ * "Análisis de la conversación" entero (21-oct-2026). Si hay varias, se queda
+ * la última (la versión final cuando el modelo se corrige a sí mismo).
+ */
+export function extraerMensajeSeguimiento(raw: string): string | null {
+  const matches = [...raw.matchAll(/<mensaje>([\s\S]*?)<\/mensaje>/gi)];
+  if (matches.length === 0) return null;
+  const texto = matches[matches.length - 1][1].trim();
+  return texto || null;
 }
 
 /**
