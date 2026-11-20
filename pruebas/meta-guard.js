@@ -69,7 +69,7 @@ const buenas = [
   'Gracias, ya recibí su cédula. Con eso Karla le confirma si aplica para Implantología.',
   // Respaldos del yaml y líneas neutrales del worker: también pasan por el guard.
   'Hola Laura, le escribo de CECOD. Pudo revisar la información del diplomado? Con gusto le resuelvo cualquier duda para que pueda reservar su lugar, el grupo ya se está formando.',
-  'Hola Laura, retomo por aquí. La próxima generación inicia el 28 y 29 de noviembre y el cupo es limitado. Le comparto cómo reservar su lugar?',
+  'Hola Laura, retomo por aquí. El cupo de la próxima generación es limitado. Le comparto cómo reservar su lugar?',
   'Listo, ya le pasé tu mensaje al equipo y en un momento te escriben por aquí 😊',
   'Gracias por tu mensaje 😊 En un momento una persona del equipo te confirma por aquí.',
 ];

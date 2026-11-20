@@ -207,7 +207,9 @@ follow_ups:
   min_gap_hours: 48
   messages:
     - "Hola {nombre}, le escribo de CECOD. Pudo revisar la información del diplomado? Con gusto le resuelvo cualquier duda para que pueda reservar su lugar, el grupo ya se está formando."
-    - "Hola {nombre}, retomo por aquí. La próxima generación inicia el 28 y 29 de noviembre y el cupo es limitado. Le comparto cómo reservar su lugar?"
+    # Sin fecha a propósito: Rehabilitación (28-29 nov 2026) e Implantología
+    # (27-28 feb 2027) ya no arrancan juntos y este mensaje no sabe cuál es.
+    - "Hola {nombre}, retomo por aquí. El cupo de la próxima generación es limitado. Le comparto cómo reservar su lugar?"
   lost_after_hours: 22
   lost_stage: No contestó
   # Sin entry_stage a propósito: es filtro de INCLUSIÓN y cortaría el
